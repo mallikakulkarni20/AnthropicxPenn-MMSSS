@@ -29,14 +29,33 @@ lectures: List[Dict[str, Any]] = [
         "teacherId": "teacher-1",
         "courseId": "course-1",
         "sections": [
-            {"id": "sec-1", "order": 1, "text": "What is an algorithm?"},
-            {"id": "sec-2", "order": 2, "text": "Running time and Big-O."},
+            {"id": "sec-1"},
+            {"id": "sec-2"},
         ],
     }
 ]
 
+#Keeping track of sections
+sections: List[Dict[str, Any]] = [{
+    "id": "sec-1",
+    "lectureId": "lec1-v1",
+    "order": 1,
+    "text": "What is an algorithm?",
+    "reactions": [{
+        "id": "reaction-1",
+    }],
+}]
+
 # Student feedback (Reaction)
-reactions: List[Dict[str, Any]] = []
+reactions: List[Dict[str, Any]] = [{
+    "id": "reaction-1",
+    "sectionId": "sec-1",
+    "studentID": "student-1",
+    "type": "typo",
+    "createdAt": "2025-01-01T00:00:00Z",
+}]
+
+#
 
 # AI suggestions for sections
 suggestions: List[Dict[str, Any]] = []
