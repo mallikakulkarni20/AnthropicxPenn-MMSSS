@@ -64,3 +64,4 @@ def create_new_lecture_version(old_lecture: Dict[str, Any],
     }
     lectures.append(new_lecture)
     return new_lecture
+    

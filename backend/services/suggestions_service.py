@@ -2,7 +2,7 @@ from typing import Optional, List, Dict, Any
 import anthropic
 import re, json, os
 from dotenv import load_dotenv
-from models.data_store import suggestions, lectures, sections
+from models.data_store import suggestions, lectures, sections, reactions
 from utils.id_utils import new_uuid
 from utils.time_utils import now_iso
 from services.lectures_service import get_lecture, get_section
@@ -159,3 +159,33 @@ def generate_suggestions_for_lecture(lecture: Any,
     except(json.JSONDecodeError, KeyError) as e:
         print(f"Error generating suggestion: {e}")
         return None
+
+def count_comments_by_lecture_and_section() -> Dict[str, Dict[str, int]]:
+   """
+   Creates a map of lectureId to a map of sectionId to the number of comments
+   for that section within that lecture.
+  
+   Returns:
+       Dict[str, Dict[str, int]]: A nested dictionary mapping lectureId -> sectionId -> count
+   """
+   result: Dict[str, Dict[str, int]] = {}
+  
+   for reaction in reactions:
+       lecture_id = reaction.get("lectureId")
+       section_id = reaction.get("sectionId")
+      
+       # Skip reactions without both lectureId and sectionId
+       if not lecture_id or not section_id:
+           continue
+      
+       # Initialize the lecture map if it doesn't exist
+       if lecture_id not in result:
+           result[lecture_id] = {}
+      
+       # Initialize the section count if it doesn't exist, then increment
+       if section_id not in result[lecture_id]:
+           result[lecture_id][section_id] = 0
+      
+       result[lecture_id][section_id] += 1
+  
+   return result

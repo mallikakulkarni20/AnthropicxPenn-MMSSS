@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 
-from services.suggestions_service import generate_suggestions_for_lecture
+from services.suggestions_service import generate_suggestions_for_lecture, count_comments_by_lecture_and_section
 from services.lectures_service import get_section, get_lecture
 
 ai_bp = Blueprint("ai", __name__)
@@ -18,13 +18,9 @@ def generate_suggestions():
     if not lecture:
         return jsonify({"error": "Lecture not found"}), 404
     
-    sections = []
-    for id in data.get("sectionIds"):
-        sections.append(get_section(id))
+    map = count_comments_by_lecture_and_section()
 
-    if not sections: 
-        return jsonify({"error": "Section not found"}), 404
+    sections = map[lecture_id].keys()
     
-
     created = generate_suggestions_for_lecture(lecture, sections)
     return jsonify({"createdSuggestions": created})

@@ -1,5 +1,6 @@
 from typing import List, Dict, Any
-
+from utils.id_utils import new_uuid
+from utils.time_utils import now_iso
 # Simple in-memory "DB" for the hackathon.
 
 
@@ -63,10 +64,10 @@ reactions: List[Dict[str, Any]] = [{
 # AI suggestions for sections
 suggestions: List[Dict[str, Any]] = [{
     "id": new_uuid(),
-    "lectureId": lecture_id,
-    "sectionId": section_id,
-    "oldText": old_section_text,         # NEW
-    "suggestedText": suggested_text,     # UPDATED
+    "lectureId": "lecture_id",
+    "sectionId": "section_id",
+    "oldText": "old_section_text",         # NEW
+    "suggestedText": "suggested_text",     # UPDATED
     "status": "pending",
     "createdAt": now_iso(),
 }]
