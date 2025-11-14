@@ -7,7 +7,7 @@ import { Sparkles, ArrowLeft, ThumbsUp, Frown, ThumbsDown } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
-type Reaction = "like" | "confused" | "dislike" | null;
+type Reaction = "typo" | "confused" | "error" | null;
 
 interface Comment {
   id: string;
@@ -55,9 +55,9 @@ const StudentLectureView = () => {
 
   const getReactionIcon = (reaction: Reaction) => {
     switch (reaction) {
-      case "like": return <ThumbsUp className="h-3 w-3 text-green-500" />;
+      case "typo": return <ThumbsUp className="h-3 w-3 text-green-500" />;
       case "confused": return <Frown className="h-3 w-3 text-yellow-500" />;
-      case "dislike": return <ThumbsDown className="h-3 w-3 text-red-500" />;
+      case "error": return <ThumbsDown className="h-3 w-3 text-red-500" />;
       default: return null;
     }
   };
@@ -115,13 +115,13 @@ const StudentLectureView = () => {
                 <CardContent className="space-y-4">
                   <div className="flex gap-2">
                     <Button
-                      variant={currentReaction === "like" ? "default" : "outline"}
+                      variant={currentReaction === "typo" ? "default" : "outline"}
                       size="sm"
-                      onClick={() => handleReaction("like")}
+                      onClick={() => handleReaction("typo")}
                       className="gap-2"
                     >
                       <ThumbsUp className="h-4 w-4" />
-                      Like
+                      Typo
                     </Button>
                     <Button
                       variant={currentReaction === "confused" ? "default" : "outline"}
@@ -133,13 +133,13 @@ const StudentLectureView = () => {
                       Confused
                     </Button>
                     <Button
-                      variant={currentReaction === "dislike" ? "default" : "outline"}
+                      variant={currentReaction === "error" ? "default" : "outline"}
                       size="sm"
-                      onClick={() => handleReaction("dislike")}
+                      onClick={() => handleReaction("error")}
                       className="gap-2"
                     >
                       <ThumbsDown className="h-4 w-4" />
-                      Dislike
+                      Error
                     </Button>
                   </div>
                   <Textarea

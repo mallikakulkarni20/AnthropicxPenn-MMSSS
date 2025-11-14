@@ -20,7 +20,7 @@ interface StudentComment {
   sectionId: string;
   studentName: string;
   text: string;
-  reaction: "like" | "confused" | "dislike";
+  reaction: "typo" | "confused" | "error";
   timestamp: string;
 }
 
@@ -47,8 +47,8 @@ const TeacherLectureView = () => {
     { id: "1", sectionId: "2", studentName: "Alice Chen", text: "I don't understand what 'simultaneously' means in this context", reaction: "confused", timestamp: "2 hours ago" },
     { id: "2", sectionId: "2", studentName: "Bob Smith", text: "Could you provide an example?", reaction: "confused", timestamp: "3 hours ago" },
     { id: "3", sectionId: "4", studentName: "Carol Davis", text: "What is a wave function exactly?", reaction: "confused", timestamp: "1 hour ago" },
-    { id: "4", sectionId: "3", studentName: "David Lee", text: "This explanation is very clear!", reaction: "like", timestamp: "4 hours ago" },
-    { id: "5", sectionId: "4", studentName: "Emma Wilson", text: "Too technical, needs simpler explanation", reaction: "dislike", timestamp: "2 hours ago" },
+    { id: "4", sectionId: "3", studentName: "David Lee", text: "This explanation is very clear!", reaction: "typo", timestamp: "4 hours ago" },
+    { id: "5", sectionId: "4", studentName: "Emma Wilson", text: "Too technical, needs simpler explanation", reaction: "error", timestamp: "2 hours ago" },
   ];
 
   const lectureSections = [
@@ -81,9 +81,9 @@ const TeacherLectureView = () => {
 
   const getReactionIcon = (reaction: string) => {
     switch (reaction) {
-      case "like": return <ThumbsUp className="h-3 w-3 text-green-500" />;
+      case "typo": return <ThumbsUp className="h-3 w-3 text-green-500" />;
       case "confused": return <Frown className="h-3 w-3 text-yellow-500" />;
-      case "dislike": return <ThumbsDown className="h-3 w-3 text-red-500" />;
+      case "error": return <ThumbsDown className="h-3 w-3 text-red-500" />;
       default: return null;
     }
   };
