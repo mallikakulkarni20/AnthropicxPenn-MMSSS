@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify
 
-from models.data_store import lectures
-from services.lectures_service import get_lecture, create_new_lecture_version
+from models.data_store import lectures, approved_section_updates
+from services.lectures_service import get_lecture, create_new_lecture_version_with_multiple_sections
 from services.reactions_service import (
     get_reactions_for_lecture,
     mark_reactions_addressed_for_section,
@@ -46,7 +46,7 @@ def get_comments_by_lecture_teacher(teacher_id, lecture_id):
     )
 
 
-# approveSuggestion —> update section text and mark comments addressed
+# approveSuggestion —> add to approved list (don't create lecture yet)
 @teacher_bp.post("/teacher/suggestions/<suggestion_id>/approve")
 def approve_suggestion(suggestion_id):
     suggestion = get_suggestion_by_id(suggestion_id)
@@ -57,20 +57,19 @@ def approve_suggestion(suggestion_id):
     if not lecture:
         return jsonify({"error": "Lecture not found"}), 404
 
-    new_lecture = create_new_lecture_version(
-        lecture,
-        suggestion["sectionId"],
-        suggestion["suggestedText"],
-    )
+    # Add to approved section updates list
+    approved_update = {
+        "lectureId": suggestion["lectureId"],
+        "sectionId": suggestion["sectionId"],
+        "suggestedText": suggestion["suggestedText"],
+        "suggestionId": suggestion_id,
+    }
+    approved_section_updates.append(approved_update)
 
     # update suggestion record
     suggestion["status"] = "accepted"
-    suggestion["lectureId"] = new_lecture["id"]
 
-    # mark all reactions on that section as addressed
-    mark_reactions_addressed_for_section(lecture["id"], suggestion["sectionId"])
-
-    return jsonify({"suggestion": suggestion, "newLecture": new_lecture})
+    return jsonify({"suggestion": suggestion, "message": "Suggestion approved and queued for publishing"})
 
 
 # rejectSuggestion —> mark suggestion rejected, mark comments addressed
@@ -90,3 +89,55 @@ def reject_suggestion(suggestion_id):
     )
 
     return jsonify({"suggestion": suggestion})
+
+
+# publishLecture —> create new lecture version with all approved section updates
+@teacher_bp.post("/teacher/<teacher_id>/lectures/<lecture_id>/publish")
+def publish_lecture(teacher_id, lecture_id):
+    lecture = get_lecture(lecture_id)
+    if not lecture or lecture["teacherId"] != teacher_id:
+        return jsonify({"error": "Lecture not found for this teacher"}), 404
+
+    # Get all approved section updates for this lecture
+    lecture_updates = [
+        update for update in approved_section_updates
+        if update["lectureId"] == lecture_id
+    ]
+
+    if not lecture_updates:
+        return jsonify({"error": "No approved section updates found for this lecture"}), 400
+
+    # Prepare section updates in the format expected by the function
+    section_updates = [
+        {"sectionId": update["sectionId"], "suggestedText": update["suggestedText"]}
+        for update in lecture_updates
+    ]
+
+    # Create new lecture version with all approved sections updated
+    new_lecture = create_new_lecture_version_with_multiple_sections(
+        lecture,
+        section_updates
+    )
+
+    # Update all suggestions with the new lecture ID and mark reactions as addressed
+    updated_suggestions = []
+    for update in lecture_updates:
+        suggestion = get_suggestion_by_id(update["suggestionId"])
+        if suggestion:
+            suggestion["lectureId"] = new_lecture["id"]
+            updated_suggestions.append(suggestion)
+        
+        # Mark reactions as addressed for this section
+        mark_reactions_addressed_for_section(lecture_id, update["sectionId"])
+
+    # Remove the processed updates from the approved list
+    approved_section_updates[:] = [
+        update for update in approved_section_updates
+        if update["lectureId"] != lecture_id
+    ]
+
+    return jsonify({
+        "newLecture": new_lecture,
+        "updatedSuggestions": updated_suggestions,
+        "message": f"Published new lecture version with {len(section_updates)} section updates"
+    })

@@ -64,4 +64,48 @@ def create_new_lecture_version(old_lecture: Dict[str, Any],
     }
     lectures.append(new_lecture)
     return new_lecture
+
+
+def create_new_lecture_version_with_multiple_sections(
+    old_lecture: Dict[str, Any],
+    section_updates: List[Dict[str, str]]
+) -> Dict[str, Any]:
+    """
+    Clone old lecture into a new version with multiple sections updated.
+    
+    Args:
+        old_lecture: The current lecture to clone
+        section_updates: List of dicts with "sectionId" and "suggestedText" keys
+    
+    Returns:
+        The new lecture version with all sections updated
+    """
+    old_lecture["isCurrent"] = False
+    base_id = old_lecture["baseLectureId"]
+    new_version = old_lecture["version"] + 1
+    new_lecture_id = f"{base_id}-v{new_version}"
+
+    # Create a map of sectionId -> new text for quick lookup
+    updates_map = {update["sectionId"]: update["suggestedText"] for update in section_updates}
+
+    new_sections = []
+    for s in old_lecture["sections"]:
+        if s["id"] in updates_map:
+            new_sections.append({
+                "id": s["id"],
+                "order": s["order"],
+                "text": updates_map[s["id"]]
+            })
+        else:
+            new_sections.append(dict(s))
+
+    new_lecture = {
+        **old_lecture,
+        "id": new_lecture_id,
+        "version": new_version,
+        "isCurrent": True,
+        "sections": new_sections,
+    }
+    lectures.append(new_lecture)
+    return new_lecture
     

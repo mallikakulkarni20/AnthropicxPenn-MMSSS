@@ -71,3 +71,7 @@ suggestions: List[Dict[str, Any]] = [{
     "status": "pending",
     "createdAt": now_iso(),
 }]
+
+# Approved section updates waiting to be published
+# Each entry: { "lectureId": str, "sectionId": str, "suggestedText": str, "suggestionId": str }
+approved_section_updates: List[Dict[str, Any]] = []
