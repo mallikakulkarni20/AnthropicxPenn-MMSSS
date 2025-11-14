@@ -1,9 +1,40 @@
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { BookOpen, Sparkles, LogOut } from "lucide-react";
+import { BookOpen, Sparkles, LogOut, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { api, LectureListItem } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 
 const StudentDashboard = () => {
+  const { toast } = useToast();
+  const [lectures, setLectures] = useState<LectureListItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  // Hardcoded user ID for now - in production this would come from auth
+  const userId = "student-1";
+
+  useEffect(() => {
+    const fetchLectures = async () => {
+      try {
+        setLoading(true);
+        const data = await api.getRecentLectures(userId);
+        setLectures(data);
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to load lectures. Please try again.",
+          variant: "destructive",
+        });
+        console.error("Error fetching lectures:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchLectures();
+  }, [toast]);
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -34,44 +65,43 @@ const StudentDashboard = () => {
           </div>
 
           {/* Lecture Cards */}
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1, 2, 3, 4, 5, 6].map((lecture) => (
-              <Card key={lecture} className="hover:border-primary/50 transition-all cursor-pointer group">
-                <CardHeader>
-                  <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-2">
-                    <BookOpen className="h-6 w-6 text-primary" />
-                  </div>
-                  <CardTitle className="group-hover:text-primary transition-colors">
-                    Lecture {lecture}
-                  </CardTitle>
-                  <CardDescription>
-                    Introduction to Topic {lecture}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2 text-sm text-muted-foreground">
-                    <div className="flex justify-between">
-                      <span>Sections:</span>
-                      <span className="font-medium text-foreground">12</span>
+          {loading ? (
+            <div className="flex justify-center items-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : lectures.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <BookOpen className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">No lectures available yet.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {lectures.map((lecture) => (
+                <Card key={lecture.id} className="hover:border-primary/50 transition-all cursor-pointer group">
+                  <CardHeader>
+                    <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-2">
+                      <BookOpen className="h-6 w-6 text-primary" />
                     </div>
-                    <div className="flex justify-between">
-                      <span>Your Feedback:</span>
-                      <span className="font-medium text-foreground">3 comments</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Last Updated:</span>
-                      <span className="font-medium text-foreground">2 days ago</span>
-                    </div>
-                  </div>
-                  <Link to={`/student/lecture/${lecture}`} className="block">
-                    <Button className="w-full mt-4" variant="outline">
-                      Open Lecture
-                    </Button>
-                  </Link>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                    <CardTitle className="group-hover:text-primary transition-colors">
+                      {lecture.title}
+                    </CardTitle>
+                    <CardDescription>
+                      Version {lecture.version}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Link to={`/student/lecture/${lecture.id}`} className="block">
+                      <Button className="w-full" variant="outline">
+                        Open Lecture
+                      </Button>
+                    </Link>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
       </main>
     </div>

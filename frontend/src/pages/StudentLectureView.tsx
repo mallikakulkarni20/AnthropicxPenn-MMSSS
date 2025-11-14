@@ -1,66 +1,142 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, ArrowLeft, ThumbsUp, Frown, ThumbsDown } from "lucide-react";
+import { Sparkles, ArrowLeft, ThumbsUp, Frown, ThumbsDown, Loader2, CheckCircle2 } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { api, Lecture, Reaction as ReactionType } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 
-type Reaction = "typo" | "confused" | "error" | null;
-
-interface Comment {
-  id: string;
-  sectionId: string;
-  text: string;
-  reaction: Reaction;
-  timestamp: string;
-}
+type ReactionOption = "typo" | "confused" | "calculation_error" | null;
 
 const StudentLectureView = () => {
   const { lectureId } = useParams();
+  const { toast } = useToast();
   const [selectedSection, setSelectedSection] = useState<string | null>(null);
-  const [currentReaction, setCurrentReaction] = useState<Reaction>(null);
+  const [currentReaction, setCurrentReaction] = useState<ReactionOption>(null);
   const [commentText, setCommentText] = useState("");
-  const [comments, setComments] = useState<Comment[]>([]);
+  const [comments, setComments] = useState<ReactionType[]>([]);
+  const [lecture, setLecture] = useState<Lecture | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
-  // Mock lecture data
-  const lectureSections = [
-    { id: "1", text: "Introduction to quantum mechanics begins with the wave-particle duality principle, which states that all matter exhibits both wave and particle properties." },
-    { id: "2", text: "The Heisenberg Uncertainty Principle is a fundamental concept that limits the precision with which certain pairs of physical properties can be known simultaneously." },
-    { id: "3", text: "Schrödinger's equation describes how the quantum state of a physical system changes over time, forming the foundation of quantum mechanics." },
-    { id: "4", text: "Wave functions are mathematical descriptions of quantum states that contain all the information about a system's possible outcomes." },
-    { id: "5", text: "Quantum entanglement occurs when particles interact in ways such that the quantum state of each particle cannot be described independently." },
-  ];
+  // Hardcoded user ID for now - in production this would come from auth
+  const userId = "student-1";
 
-  const handleReaction = (reaction: Reaction) => {
+  useEffect(() => {
+    const fetchLectureData = async () => {
+      if (!lectureId) return;
+
+      try {
+        setLoading(true);
+        const [lectureData, userComments] = await Promise.all([
+          api.getLecture(lectureId),
+          api.getUserComments(userId, lectureId),
+        ]);
+        setLecture(lectureData);
+        setComments(userComments);
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to load lecture. Please try again.",
+          variant: "destructive",
+        });
+        console.error("Error fetching lecture:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchLectureData();
+  }, [lectureId, toast]);
+
+  const handleReaction = (reaction: ReactionOption) => {
     setCurrentReaction(reaction);
   };
 
-  const handleSubmitComment = () => {
-    if (selectedSection && commentText.trim()) {
-      const newComment: Comment = {
-        id: Date.now().toString(),
+  const handleSubmitComment = async () => {
+    if (!selectedSection || !currentReaction || !lectureId) {
+      toast({
+        title: "Missing Information",
+        description: "Please select a reaction type.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      const newReaction = await api.submitReaction({
+        userId,
+        lectureId,
         sectionId: selectedSection,
-        text: commentText,
-        reaction: currentReaction,
-        timestamp: new Date().toLocaleString(),
-      };
-      setComments([newComment, ...comments]);
+        type: currentReaction,
+        comment: commentText.trim(),
+      });
+
+      setComments([newReaction, ...comments]);
       setCommentText("");
       setCurrentReaction(null);
       setSelectedSection(null);
+
+      toast({
+        title: "Success",
+        description: "Your feedback has been submitted!",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to submit feedback. Please try again.",
+        variant: "destructive",
+      });
+      console.error("Error submitting reaction:", error);
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const getReactionIcon = (reaction: Reaction) => {
+  const getReactionIcon = (reaction: string) => {
     switch (reaction) {
       case "typo": return <ThumbsUp className="h-3 w-3 text-green-500" />;
       case "confused": return <Frown className="h-3 w-3 text-yellow-500" />;
-      case "error": return <ThumbsDown className="h-3 w-3 text-red-500" />;
+      case "calculation_error": return <ThumbsDown className="h-3 w-3 text-red-500" />;
       default: return null;
     }
   };
+
+  const getReactionLabel = (reaction: string) => {
+    switch (reaction) {
+      case "typo": return "Typo";
+      case "confused": return "Confused";
+      case "calculation_error": return "Calculation Error";
+      default: return "";
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!lecture) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Card>
+          <CardContent className="py-12 text-center">
+            <p className="text-muted-foreground">Lecture not found.</p>
+            <Link to="/student" className="block mt-4">
+              <Button>Back to Dashboard</Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -75,7 +151,8 @@ const StudentLectureView = () => {
             </Link>
             <div className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-primary" />
-              <h1 className="text-xl font-bold text-foreground">Lecture {lectureId}</h1>
+              <h1 className="text-xl font-bold text-foreground">{lecture.title}</h1>
+              <Badge variant="outline" className="text-xs">v{lecture.version}</Badge>
             </div>
           </div>
         </div>
@@ -87,10 +164,10 @@ const StudentLectureView = () => {
           <div className="lg:col-span-2 space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Introduction to Topic {lectureId}</CardTitle>
+                <CardTitle>{lecture.title}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                {lectureSections.map((section) => (
+                {lecture.sections.map((section) => (
                   <div
                     key={section.id}
                     className={`p-4 rounded-lg border-2 transition-all cursor-pointer ${
@@ -133,13 +210,13 @@ const StudentLectureView = () => {
                       Confused
                     </Button>
                     <Button
-                      variant={currentReaction === "error" ? "default" : "outline"}
+                      variant={currentReaction === "calculation_error" ? "default" : "outline"}
                       size="sm"
-                      onClick={() => handleReaction("error")}
+                      onClick={() => handleReaction("calculation_error")}
                       className="gap-2"
                     >
                       <ThumbsDown className="h-4 w-4" />
-                      Error
+                      Calculation Error
                     </Button>
                   </div>
                   <Textarea
@@ -148,8 +225,19 @@ const StudentLectureView = () => {
                     onChange={(e) => setCommentText(e.target.value)}
                     rows={3}
                   />
-                  <Button onClick={handleSubmitComment} className="w-full">
-                    Submit Feedback
+                  <Button 
+                    onClick={handleSubmitComment} 
+                    className="w-full"
+                    disabled={submitting || !currentReaction}
+                  >
+                    {submitting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Submitting...
+                      </>
+                    ) : (
+                      "Submit Feedback"
+                    )}
                   </Button>
                 </CardContent>
               </Card>
@@ -171,15 +259,32 @@ const StudentLectureView = () => {
                   ) : (
                     <div className="space-y-3">
                       {comments.map((comment) => (
-                        <div key={comment.id} className="p-3 rounded-lg bg-muted/50 border border-border">
-                          <div className="flex items-center gap-2 mb-2">
-                            {getReactionIcon(comment.reaction)}
+                        <div 
+                          key={comment.id} 
+                          className={`p-3 rounded-lg border ${
+                            comment.addressed 
+                              ? "bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-900" 
+                              : "bg-muted/50 border-border"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 mb-2 flex-wrap">
+                            {getReactionIcon(comment.type)}
                             <Badge variant="outline" className="text-xs">
-                              Section {comment.sectionId}
+                              {getReactionLabel(comment.type)}
                             </Badge>
+                            {comment.addressed && (
+                              <Badge variant="default" className="text-xs bg-green-600 gap-1">
+                                <CheckCircle2 className="h-3 w-3" />
+                                Resolved
+                              </Badge>
+                            )}
                           </div>
-                          <p className="text-sm text-foreground mb-2">{comment.text}</p>
-                          <p className="text-xs text-muted-foreground">{comment.timestamp}</p>
+                          {comment.comment && (
+                            <p className="text-sm text-foreground mb-2">{comment.comment}</p>
+                          )}
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(comment.createdAt).toLocaleString()}
+                          </p>
                         </div>
                       ))}
                     </div>

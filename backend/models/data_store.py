@@ -29,8 +29,10 @@ lectures: List[Dict[str, Any]] = [
         "teacherId": "teacher-1",
         "courseId": "course-1",
         "sections": [
-            {"id": "sec-1", "order": 1, "text": "What is an algorithm?"},
-            {"id": "sec-2", "order": 2, "text": "Running time and Big-O."},
+            {"id": "sec-1", "order": 1, "text": "An algorithm is a step-by-step procedure for solving a problem or accomplishing a task. It consists of a finite set of well-defined instructions that can be executed in a specific order to achieve a desired result."},
+            {"id": "sec-2", "order": 2, "text": "Running time analysis helps us understand how the execution time of an algorithm grows as the input size increases. Big-O notation provides an upper bound on the growth rate of an algorithm's time complexity."},
+            {"id": "sec-3", "order": 3, "text": "Common time complexities include O(1) for constant time, O(log n) for logarithmic time, O(n) for linear time, O(n log n) for linearithmic time, and O(n²) for quadratic time."},
+            {"id": "sec-4", "order": 4, "text": "When analyzing algorithms, we typically focus on the worst-case scenario to ensure our algorithm performs acceptably even under the most challenging conditions."},
         ],
     }
 ]
