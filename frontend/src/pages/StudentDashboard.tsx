@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { BookOpen, Sparkles, LogOut, Loader2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { BookOpen, Sparkles, LogOut, Loader2, History } from "lucide-react";
 import { Link } from "react-router-dom";
 import { api, LectureListItem } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
@@ -34,6 +35,15 @@ const StudentDashboard = () => {
 
     fetchLectures();
   }, [toast]);
+
+  // Group lectures by baseLectureId for display
+  const groupedLectures = lectures.reduce((acc, lecture) => {
+    if (!acc[lecture.baseLectureId]) {
+      acc[lecture.baseLectureId] = [];
+    }
+    acc[lecture.baseLectureId].push(lecture);
+    return acc;
+  }, {} as Record<string, LectureListItem[]>);
 
   return (
     <div className="min-h-screen bg-background">
@@ -78,28 +88,61 @@ const StudentDashboard = () => {
             </Card>
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {lectures.map((lecture) => (
-                <Card key={lecture.id} className="hover:border-primary/50 transition-all cursor-pointer group">
-                  <CardHeader>
-                    <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-2">
-                      <BookOpen className="h-6 w-6 text-primary" />
-                    </div>
-                    <CardTitle className="group-hover:text-primary transition-colors">
-                      {lecture.title}
-                    </CardTitle>
-                    <CardDescription>
-                      Version {lecture.version}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Link to={`/student/lecture/${lecture.id}`} className="block">
-                      <Button className="w-full" variant="outline">
-                        Open Lecture
-                      </Button>
-                    </Link>
-                  </CardContent>
-                </Card>
-              ))}
+              {Object.entries(groupedLectures).map(([baseLectureId, versions]) => {
+                // Sort versions by version number descending (newest first)
+                const sortedVersions = [...versions].sort((a, b) => b.version - a.version);
+                const currentVersion = sortedVersions.find(v => v.isCurrent);
+                const lectureTitle = sortedVersions[0].title;
+
+                return (
+                  <Card key={baseLectureId} className="hover:border-primary/50 transition-all">
+                    <CardHeader>
+                      <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-2">
+                        <BookOpen className="h-6 w-6 text-primary" />
+                      </div>
+                      <CardTitle className="text-foreground">
+                        {lectureTitle}
+                      </CardTitle>
+                      <CardDescription className="flex items-center gap-2">
+                        {sortedVersions.length > 1 ? (
+                          <>
+                            <History className="h-3 w-3" />
+                            {sortedVersions.length} versions available
+                          </>
+                        ) : (
+                          `Version ${sortedVersions[0].version}`
+                        )}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      {sortedVersions.map((lecture) => (
+                        <Link 
+                          key={lecture.id} 
+                          to={`/student/lecture/${lecture.id}`} 
+                          className="block"
+                        >
+                          <Button 
+                            className="w-full justify-between" 
+                            variant={lecture.isCurrent ? "default" : "outline"}
+                          >
+                            <span>Version {lecture.version}</span>
+                            {lecture.isCurrent && (
+                              <Badge variant="secondary" className="bg-green-500/20 text-green-700 dark:text-green-400">
+                                Current
+                              </Badge>
+                            )}
+                            {!lecture.isCurrent && (
+                              <Badge variant="secondary" className="bg-muted">
+                                Previous
+                              </Badge>
+                            )}
+                          </Button>
+                        </Link>
+                      ))}
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </div>
