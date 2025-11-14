@@ -88,7 +88,17 @@ def generate_suggestions_for_section(lecture: Any,
         cleaned = re.sub(r'```json\n?', '', suggestion)
         cleaned = re.sub(r'```\n?', '', cleaned).strip()
         result = json.loads(cleaned)
-        return (target_section['id'], result)
+
+        suggestion = {
+            "id": new_uuid(),
+            "lectureId": lecture["id"],
+            "sectionId": target_section["id"],
+            "originalText": target_section["text"],
+            "suggestedText": result["revisedText"],
+            "status": "pending",
+            "createdAt": now_iso()
+        }
+        return suggestion
     except(json.JSONDecodeError, KeyError) as e:
         print(f"Error generating suggestion: {e}")
         return None
