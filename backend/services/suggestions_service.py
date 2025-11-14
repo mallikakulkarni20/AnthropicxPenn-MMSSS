@@ -1,46 +1,94 @@
 from typing import Optional, List, Dict, Any
-
-from models.data_store import suggestions
+import anthropic
+import re, json, os
+from dotenv import load_dotenv
+from models.data_store import suggestions, lectures, sections
 from utils.id_utils import new_uuid
 from utils.time_utils import now_iso
 from services.lectures_service import get_lecture
 from services.reactions_service import get_reactions_for_section
 
+load_dotenv()
+MY_KEY = os.getenv('API_KEY')
+client = anthropic.Anthropic(api_key=MY_KEY)
 
 def get_suggestion_by_id(suggestion_id: str) -> Optional[Dict[str, Any]]:
     return next((s for s in suggestions if s["id"] == suggestion_id), None)
 
 
-def create_suggestion(lecture_id: str,
-                      section_id: str,
-                      suggested_text: str) -> Dict[str, Any]:
-    suggestion = {
-        "id": new_uuid(),
-        "lectureId": lecture_id,
-        "sectionId": section_id,
-        "suggestedText": suggested_text,
-        "status": "pending",
-        "createdAt": now_iso(),
-    }
-    suggestions.append(suggestion)
-    return suggestion
+def build_prompt(lecture: Any, section: Any, reactions: List[Any]):
+    typos = [r for r in reactions if r['type'] == 'typo']
+    confusions = [r for r in reactions if r['type'] == 'confused']
+    calc_errors = [r for r in reactions if r['type'] == 'calculation_error']
 
+    prompt_parts = [
+        "You are helping a professor improve their lecture content based on student feedback.\n\n",
+        f"LECTURE TITLE: {lecture['title']}\n\n",
+        f"SECTION TO REVISE (Section):\n{section['text']}\n\n"
+    ]
 
-def generate_suggestions_for_lecture(lecture_id: str,
-                                     min_reactions: int = 2
+    prompt_parts.append("STUDENT FEEDBACK ON THIS SECTION:\n\n")
+    if typos:
+        prompt_parts.append(f"Typo Reports ({len(typos)}):\n")
+        for i, r in enumerate(typos, 1):
+            if (r['comment']):
+                prompt_parts.append(f"{i}. {r['comment']}\n")
+        prompt_parts.append("\n")
+    
+    if confusions:
+        prompt_parts.append(f"Confusion Reports ({len(confusions)}):\n")
+        for i, r in enumerate(confusions, 1):
+            if (r['comment']):
+                prompt_parts.append(f"{i}. {r['comment']}\n")
+        prompt_parts.append("\n")
+    
+    if calc_errors:
+        prompt_parts.append(f"Calculation Error Reports ({len(calc_errors)}):\n")
+        for i, r in enumerate(calc_errors, 1):
+            if (r['comment']):
+                prompt_parts.append(f"{i}. {r['comment']}\n")
+        prompt_parts.append("\n")
+    
+    prompt_parts.append("""TASK:
+        Revise ONLY target section based on student feedback and respond back with the text that should replace that section. Respond in JSON format:
+
+        {
+            "revisedText": "The complete revised section text here"
+        }
+
+        Return ONLY valid JSON, no other text.""")
+    
+    return "".join(prompt_parts)
+
+def generate_suggestions_for_section(lecture: Any,
+                                     target_section: Any
                                      ) -> List[Dict[str, Any]]:
     """Simple heuristic: if a section has >= min_reactions, create a suggestion."""
-    lecture = get_lecture(lecture_id)
     if not lecture:
         return []
 
-    created = []
-    for section in lecture["sections"]:
-        sec_reactions = get_reactions_for_section(lecture_id, section["id"])
-        if len(sec_reactions) >= min_reactions:
-            sug_text = (
-                "[AI SUGGESTED UPDATE] " + section["text"] +
-                " (Clarify this section based on student feedback.)"
-            )
-            created.append(create_suggestion(lecture_id, section["id"], sug_text))
-    return created
+    
+    sec_reactions = get_reactions_for_section(target_section["id"])
+    if len(sec_reactions) == 0:
+        return None
+    prompt = build_prompt(lecture, target_section, sec_reactions)
+    
+    try:
+        message = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=4096,
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
+        )
+        suggestion = message.content[0].text
+        cleaned = re.sub(r'```json\n?', '', suggestion)
+        cleaned = re.sub(r'```\n?', '', cleaned).strip()
+        result = json.loads(cleaned)
+        return (target_section['id'], result)
+    except(json.JSONDecodeError, KeyError) as e:
+        print(f"Error generating suggestion: {e}")
+        return None

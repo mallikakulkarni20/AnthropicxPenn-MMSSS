@@ -1,6 +1,6 @@
 from typing import List, Dict, Any
 
-from models.data_store import reactions
+from models.data_store import reactions, sections
 from utils.id_utils import new_uuid
 from utils.time_utils import now_iso
 
@@ -36,11 +36,10 @@ def get_reactions_for_lecture(lecture_id: str) -> List[Dict[str, Any]]:
     return [r for r in reactions if r["lectureId"] == lecture_id]
 
 
-def get_reactions_for_section(lecture_id: str,
-                              section_id: str) -> List[Dict[str, Any]]:
+def get_reactions_for_section(section_id: str) -> List[Dict[str, Any]]:
     return [
         r for r in reactions
-        if r["lectureId"] == lecture_id and r["sectionId"] == section_id
+        if r["sectionId"] == section_id
     ]
 
 
