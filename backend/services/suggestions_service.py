@@ -23,8 +23,7 @@ def build_prompt(lecture: Any, sections_with_reactions: List[Dict[str, Any]]):
         "FULL LECTURE CONTENT:\n"
     ]
 
-    for sec_id in lecture["sections"]:
-        sec = get_section(sec_id)
+    for sec in lecture["sections"]:
         prompt_parts.append(f"{sec['text']}\n")
     
     prompt_parts.append("\n" + "="*80 + "\n\n")
@@ -109,7 +108,7 @@ def generate_suggestions_for_lecture(lecture: Any,
     if not lecture:
         return []
 
-    suggestions = []
+    created_suggestions = []
     sections_with_reactions = []
 
     for sec in sections:
@@ -143,7 +142,7 @@ def generate_suggestions_for_lecture(lecture: Any,
 
         for rev in revisions:
             section_id = rev['sectionId']
-            section = get_section(section_id)
+            section = get_section(lecture, section_id)
             revised_text = rev['revisedText']
             suggestion = {
                 "id": new_uuid(),
@@ -154,11 +153,14 @@ def generate_suggestions_for_lecture(lecture: Any,
                 "status": "pending",
                 "createdAt": now_iso()
             }
+            # Add to global suggestions list
             suggestions.append(suggestion)
-        return suggestions
+            # Add to local return list
+            created_suggestions.append(suggestion)
+        return created_suggestions
     except(json.JSONDecodeError, KeyError) as e:
         print(f"Error generating suggestion: {e}")
-        return None
+        return []
 
 def count_comments_by_lecture_and_section() -> Dict[str, Dict[str, int]]:
    """

@@ -43,6 +43,7 @@ export interface Suggestion {
   id: string;
   lectureId: string;
   sectionId: string;
+  originalText?: string;
   suggestedText: string;
   status: "pending" | "accepted" | "rejected";
   createdAt: string;
