@@ -7,7 +7,8 @@ A platform that allows students to provide feedback on lecture content and uses 
 ## Features
 
 - **Student View**: Browse lectures, provide feedback (typos, confusion, calculation errors), and track which comments have been resolved
-- **Teacher View**: Review student feedback, get AI-generated suggestions, and accept/reject changes to lecture content
+- **Teacher View**: View all lecture versions, review student feedback, generate AI suggestions, and approve/reject changes to create new versions
+- **AI-Powered Suggestions**: Automatically generate improved content based on student feedback patterns
 - **Version Control**: Track different versions of lectures as they evolve based on student feedback
 
 ## Getting Started

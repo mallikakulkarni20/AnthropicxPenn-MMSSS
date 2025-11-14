@@ -1,10 +1,73 @@
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { BookOpen, Sparkles, LogOut, AlertCircle, CheckCircle } from "lucide-react";
+import { BookOpen, Sparkles, LogOut, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
+import { api, LectureListItem } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ChevronDown } from "lucide-react";
 
 const TeacherDashboard = () => {
+  const { toast } = useToast();
+  const [lectures, setLectures] = useState<LectureListItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [openLectures, setOpenLectures] = useState<Set<string>>(new Set());
+
+  // Hardcoded teacher ID for now - in production this would come from auth
+  const teacherId = "teacher-1";
+
+  useEffect(() => {
+    const fetchLectures = async () => {
+      try {
+        setLoading(true);
+        const data = await api.getTeacherLectures(teacherId);
+        setLectures(data);
+        // Open current versions by default
+        const currentBaseLectureIds = data
+          .filter(l => l.isCurrent)
+          .map(l => l.baseLectureId);
+        setOpenLectures(new Set(currentBaseLectureIds));
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to load lectures. Please try again.",
+          variant: "destructive",
+        });
+        console.error("Error fetching lectures:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchLectures();
+  }, [toast]);
+
+  // Group lectures by baseLectureId
+  const groupedLectures = lectures.reduce((acc, lecture) => {
+    if (!acc[lecture.baseLectureId]) {
+      acc[lecture.baseLectureId] = [];
+    }
+    acc[lecture.baseLectureId].push(lecture);
+    return acc;
+  }, {} as Record<string, LectureListItem[]>);
+
+  // Sort versions within each group
+  Object.keys(groupedLectures).forEach(key => {
+    groupedLectures[key].sort((a, b) => b.version - a.version);
+  });
+
+  const toggleLecture = (baseLectureId: string) => {
+    const newOpen = new Set(openLectures);
+    if (newOpen.has(baseLectureId)) {
+      newOpen.delete(baseLectureId);
+    } else {
+      newOpen.add(baseLectureId);
+    }
+    setOpenLectures(newOpen);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -31,13 +94,9 @@ const TeacherDashboard = () => {
             <div>
               <h2 className="text-3xl font-bold text-foreground mb-2">My Lectures</h2>
               <p className="text-muted-foreground">
-                Manage content, review AI suggestions, and publish updates
+                Manage content, review student feedback, and approve AI suggestions
               </p>
             </div>
-            <Button className="gap-2">
-              <BookOpen className="h-4 w-4" />
-              New Lecture
-            </Button>
           </div>
 
           {/* Stats Overview */}
@@ -49,98 +108,123 @@ const TeacherDashboard = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-foreground">6</div>
+                <div className="text-3xl font-bold text-foreground">
+                  {Object.keys(groupedLectures).length}
+                </div>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Pending Suggestions
+                  Total Versions
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-accent">12</div>
+                <div className="text-3xl font-bold text-accent">{lectures.length}</div>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Student Feedback
+                  Current Versions
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-secondary-foreground">47</div>
+                <div className="text-3xl font-bold text-secondary-foreground">
+                  {lectures.filter(l => l.isCurrent).length}
+                </div>
               </CardContent>
             </Card>
           </div>
 
           {/* Lecture Cards */}
-          <div className="grid md:grid-cols-2 gap-6">
-            {[
-              { id: 1, pending: 3, feedback: 8 },
-              { id: 2, pending: 5, feedback: 12 },
-              { id: 3, pending: 0, feedback: 4 },
-              { id: 4, pending: 2, feedback: 9 },
-              { id: 5, pending: 1, feedback: 7 },
-              { id: 6, pending: 1, feedback: 7 },
-            ].map((lecture) => (
-              <Card key={lecture.id} className="hover:border-primary/50 transition-all cursor-pointer group">
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <BookOpen className="h-6 w-6 text-primary" />
-                    </div>
-                    {lecture.pending > 0 && (
-                      <Badge variant="secondary" className="gap-1">
-                        <AlertCircle className="h-3 w-3" />
-                        {lecture.pending} pending
-                      </Badge>
-                    )}
-                  </div>
-                  <CardTitle className="group-hover:text-primary transition-colors">
-                    Lecture {lecture.id}
-                  </CardTitle>
-                  <CardDescription>
-                    Introduction to Topic {lecture.id}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div className="space-y-2 text-sm text-muted-foreground">
-                      <div className="flex justify-between">
-                        <span>Sections:</span>
-                        <span className="font-medium text-foreground">12</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Student Feedback:</span>
-                        <span className="font-medium text-foreground">{lecture.feedback} comments</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Last Published:</span>
-                        <span className="font-medium text-foreground">2 days ago</span>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Link to={`/teacher/lecture/${lecture.id}`} className="flex-1">
-                        <Button className="w-full" variant="outline">
-                          <BookOpen className="h-4 w-4 mr-2" />
-                          Edit
-                        </Button>
-                      </Link>
-                      {lecture.pending > 0 && (
-                        <Link to={`/teacher/lecture/${lecture.id}`} className="flex-1">
-                          <Button className="w-full" variant="default">
-                            <CheckCircle className="h-4 w-4 mr-2" />
-                            Review AI
+          {loading ? (
+            <div className="flex justify-center items-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : Object.keys(groupedLectures).length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <BookOpen className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">No lectures created yet.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {Object.entries(groupedLectures).map(([baseLectureId, versions]) => {
+                const currentVersion = versions.find(v => v.isCurrent) || versions[0];
+                const isOpen = openLectures.has(baseLectureId);
+                
+                return (
+                  <Card key={baseLectureId} className="overflow-hidden">
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                            <BookOpen className="h-6 w-6 text-primary" />
+                          </div>
+                          <div>
+                            <CardTitle>{currentVersion.title}</CardTitle>
+                            <CardDescription>
+                              {versions.length} version{versions.length !== 1 ? 's' : ''}
+                            </CardDescription>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {currentVersion.isCurrent && (
+                            <Badge variant="default">Current</Badge>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => toggleLecture(baseLectureId)}
+                          >
+                            <ChevronDown 
+                              className={`h-4 w-4 transition-transform ${
+                                isOpen ? 'rotate-180' : ''
+                              }`}
+                            />
                           </Button>
-                        </Link>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    
+                    <Collapsible open={isOpen}>
+                      <CollapsibleContent>
+                        <CardContent>
+                          <div className="space-y-2">
+                            {versions.map((version) => (
+                              <div
+                                key={version.id}
+                                className="flex items-center justify-between p-3 rounded-lg border border-border hover:border-primary/50 transition-all"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <Badge variant="outline">v{version.version}</Badge>
+                                  <span className="text-sm text-muted-foreground">
+                                    {version.id}
+                                  </span>
+                                  {version.isCurrent && (
+                                    <Badge variant="secondary" className="text-xs">
+                                      Current
+                                    </Badge>
+                                  )}
+                                </div>
+                                <Link to={`/teacher/lecture/${version.id}`}>
+                                  <Button size="sm" variant="outline">
+                                    View
+                                  </Button>
+                                </Link>
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
         </div>
       </main>
     </div>
