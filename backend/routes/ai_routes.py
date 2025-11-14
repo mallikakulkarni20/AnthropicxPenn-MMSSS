@@ -20,7 +20,12 @@ def generate_suggestions():
     
     map = count_comments_by_lecture_and_section()
 
-    sections = map[lecture_id].keys()
+    # Get section objects that have comments
+    section_ids_with_comments = map.get(lecture_id, {}).keys()
+    sections_with_comments = [
+        section for section in lecture["sections"] 
+        if section["id"] in section_ids_with_comments
+    ]
     
-    created = generate_suggestions_for_lecture(lecture, sections)
+    created = generate_suggestions_for_lecture(lecture, sections_with_comments)
     return jsonify({"createdSuggestions": created})
