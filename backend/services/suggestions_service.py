@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from models.data_store import suggestions, lectures, sections
 from utils.id_utils import new_uuid
 from utils.time_utils import now_iso
-from services.lectures_service import get_lecture
+from services.lectures_service import get_lecture, get_section
 from services.reactions_service import get_reactions_for_section
 
 load_dotenv()
@@ -16,67 +16,117 @@ def get_suggestion_by_id(suggestion_id: str) -> Optional[Dict[str, Any]]:
     return next((s for s in suggestions if s["id"] == suggestion_id), None)
 
 
-def build_prompt(lecture: Any, section: Any, reactions: List[Any]):
-    typos = [r for r in reactions if r['type'] == 'typo']
-    confusions = [r for r in reactions if r['type'] == 'confused']
-    calc_errors = [r for r in reactions if r['type'] == 'calculation_error']
-
+def build_prompt(lecture: Any, sections_with_reactions: List[Dict[str, Any]]):
     prompt_parts = [
         "You are helping a professor improve their lecture content based on student feedback.\n\n",
         f"LECTURE TITLE: {lecture['title']}\n\n",
-        f"SECTION TO REVISE (Section):\n{section['text']}\n\n"
+        "FULL LECTURE CONTENT:\n"
     ]
 
-    prompt_parts.append("STUDENT FEEDBACK ON THIS SECTION:\n\n")
-    if typos:
-        prompt_parts.append(f"Typo Reports ({len(typos)}):\n")
-        for i, r in enumerate(typos, 1):
-            if (r['comment']):
-                prompt_parts.append(f"{i}. {r['comment']}\n")
+    for sec_id in lecture["sections"]:
+        sec = get_section(sec_id)
+        prompt_parts.append(f"{sec['text']}\n")
+    
+    prompt_parts.append("\n" + "="*80 + "\n\n")
+    prompt_parts.append("HERE ARE ALL THE SECTIONS FROM THE FULL LECTURE CONTENT THAT NEED TO BE REVISED:\n\n")
+
+    # Add all section texts for context
+    for i, item in enumerate(sections_with_reactions, 1):
+        section = item['section']
+        prompt_parts.append(f"\n--- Section {i} (ID: {section['id']}) ---\n")
+        prompt_parts.append(f"{section['text']}\n")
+
+    prompt_parts.append("\n" + "="*80 + "\n\n")
+    prompt_parts.append("STUDENT FEEDBACK BY SECTION:\n\n")
+
+    for i, item in enumerate(sections_with_reactions, 1):
+        section = item['section']
+        reactions = item['reactions']
+        
+        if len(reactions) == 0:
+            continue
+            
+        prompt_parts.append(f"SECTION {i} (ID: {section['id']}) FEEDBACK:\n")
+        
+        typos = [r for r in reactions if r['type'] == 'typo']
+        confusions = [r for r in reactions if r['type'] == 'confused']
+        calc_errors = [r for r in reactions if r['type'] == 'calculation_error']
+        
+        if typos:
+            prompt_parts.append(f"  Typo Reports ({len(typos)}):\n")
+            for j, r in enumerate(typos, 1):
+                if r.get('comment'):
+                    prompt_parts.append(f"    {j}. {r['comment']}\n")
+        
+        if confusions:
+            prompt_parts.append(f"  Confusion Reports ({len(confusions)}):\n")
+            for j, r in enumerate(confusions, 1):
+                if r.get('comment'):
+                    prompt_parts.append(f"    {j}. {r['comment']}\n")
+        
+        if calc_errors:
+            prompt_parts.append(f"  Calculation Error Reports ({len(calc_errors)}):\n")
+            for j, r in enumerate(calc_errors, 1):
+                if r.get('comment'):
+                    prompt_parts.append(f"    {j}. {r['comment']}\n")
+        
         prompt_parts.append("\n")
     
-    if confusions:
-        prompt_parts.append(f"Confusion Reports ({len(confusions)}):\n")
-        for i, r in enumerate(confusions, 1):
-            if (r['comment']):
-                prompt_parts.append(f"{i}. {r['comment']}\n")
-        prompt_parts.append("\n")
-    
-    if calc_errors:
-        prompt_parts.append(f"Calculation Error Reports ({len(calc_errors)}):\n")
-        for i, r in enumerate(calc_errors, 1):
-            if (r['comment']):
-                prompt_parts.append(f"{i}. {r['comment']}\n")
-        prompt_parts.append("\n")
-    
-    prompt_parts.append("""TASK:
-        Revise ONLY target section based on student feedback and respond back with the text that should replace that section. Respond in JSON format:
+    prompt_parts.append("""
+        TASK:
+        For each section that has feedback, provide a revised version. Return your response as a JSON array with this structure:
 
         {
-            "revisedText": "The complete revised section text here"
+        "revisions": [
+            {
+            "sectionId": "sec-1",
+            "revisedText": "The complete revised text for this section"
+            },
+            {
+            "sectionId": "sec-2",
+            "revisedText": "The complete revised text for this section"
+            }
+        ]
         }
 
-        Return ONLY valid JSON, no other text.""")
+        Guidelines:
+        1. Only revise sections that have student feedback
+        2. Fix typos and calculation errors mentioned
+        3. Add clarification where students are confused
+        4. Maintain consistency across all sections
+        5. Keep the same general structure and flow
+        6. Preserve technical accuracy
+
+        Return ONLY valid JSON, no other text.
+    """)
     
     return "".join(prompt_parts)
 
-def generate_suggestions_for_section(lecture: Any,
-                                     target_section: Any
+def generate_suggestions_for_lecture(lecture: Any,
+                                     sections: List[Any]
                                      ) -> List[Dict[str, Any]]:
     """Simple heuristic: if a section has >= min_reactions, create a suggestion."""
     if not lecture:
         return []
 
+    suggestions = []
+    sections_with_reactions = []
+
+    for sec in sections:
+        sec_reactions = get_reactions_for_section(sec["id"])
+        if len(sec_reactions) == 0:
+            continue
+        sections_with_reactions.append({
+            'section': sec,
+            'reactions': sec_reactions
+        })
     
-    sec_reactions = get_reactions_for_section(target_section["id"])
-    if len(sec_reactions) == 0:
-        return None
-    prompt = build_prompt(lecture, target_section, sec_reactions)
+    prompt = build_prompt(lecture, sections_with_reactions)
     
     try:
         message = client.messages.create(
             model="claude-sonnet-4-20250514",
-            max_tokens=4096,
+            max_tokens=8096,
             messages=[
                 {
                     "role": "user",
@@ -84,21 +134,28 @@ def generate_suggestions_for_section(lecture: Any,
                 }
             ]
         )
-        suggestion = message.content[0].text
-        cleaned = re.sub(r'```json\n?', '', suggestion)
+        
+        response = message.content[0].text
+        cleaned = re.sub(r'```json\n?', '', response)
         cleaned = re.sub(r'```\n?', '', cleaned).strip()
         result = json.loads(cleaned)
+        revisions = result.get('revisions', [])
 
-        suggestion = {
-            "id": new_uuid(),
-            "lectureId": lecture["id"],
-            "sectionId": target_section["id"],
-            "originalText": target_section["text"],
-            "suggestedText": result["revisedText"],
-            "status": "pending",
-            "createdAt": now_iso()
-        }
-        return suggestion
+        for rev in revisions:
+            section_id = rev['sectionId']
+            section = get_section(section_id)
+            revised_text = rev['revisedText']
+            suggestion = {
+                "id": new_uuid(),
+                "lectureId": lecture["id"],
+                "sectionId": section_id,
+                "originalText": section["text"],
+                "suggestedText": revised_text,
+                "status": "pending",
+                "createdAt": now_iso()
+            }
+            suggestions.append(suggestion)
+        return suggestions
     except(json.JSONDecodeError, KeyError) as e:
         print(f"Error generating suggestion: {e}")
         return None
